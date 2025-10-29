@@ -1,69 +1,326 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>RCH4 IA • Photo → OCR (cadre blanc) + QR (zone bleue) → Prompt</title>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-<style>
-body{margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0b1220;color:#e5e7eb}
-header{padding:14px 18px;background:linear-gradient(90deg,#0ea5e9,#06b6d4);color:#001018;font-weight:800}
-main{max-width:980px;margin:24px auto;padding:0 16px 40px;display:grid;gap:16px}
-.card{background:#111827cc;border:1px solid #1f2a3a;border-radius:16px;padding:16px}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-button{background:#06b6d4;border:none;color:#001018;font-weight:700;padding:10px 14px;border-radius:10px;cursor:pointer}
-button.secondary{background:transparent;border:1px solid #334155;color:#e5e7eb}
-button:disabled{opacity:.5;cursor:not-allowed}
-video,canvas{width:100%;border-radius:12px;background:#0f172a;border:1px dashed #334155;min-height:260px;display:block}
-textarea{width:100%;min-height:220px;border-radius:12px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:12px;font-size:14px}
-.hint{color:#94a3b8;font-size:12px}
-.progress{height:6px;background:#0b1220;border-radius:999px;overflow:hidden;border:1px solid #1f2a3a}
-.bar{height:100%;width:0;background:#06b6d4;transition:width .3s ease}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RCH4 IA • Photo → OCR (cadre blanc) + QR (zone bleue) → Prompt</title>
+
+  <!-- 🧩 Librairies externes nécessaires -->
+  <!-- Tesseract.js = OCR (reconnaissance de texte) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <!-- jsQR = lecture de QR codes -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+  <!-- pdf.js = conversion PDF → image (pour OCRiser une fiche numérique) -->
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+
+  <!-- 🎨 Style visuel de l’application -->
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: #0b1220;
+      color: #e5e7eb;
+    }
+
+    header {
+      padding: 14px 18px;
+      background: linear-gradient(90deg, #0ea5e9, #06b6d4);
+      color: #001018;
+      font-weight: 800;
+    }
+
+    main {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px 40px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      background: #111827cc;
+      border: 1px solid #1f2a3a;
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button {
+      background: #06b6d4;
+      border: none;
+      color: #001018;
+      font-weight: 700;
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: transparent;
+      border: 1px solid #334155;
+      color: #e5e7eb;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    video, canvas {
+      width: 100%;
+      border-radius: 12px;
+      background: #0f172a;
+      border: 1px dashed #334155;
+      min-height: 260px;
+      display: block;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background: #0b1220;
+      color: #e5e7eb;
+      padding: 12px;
+      font-size: 14px;
+    }
+
+    .hint {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+
+    .progress {
+      height: 6px;
+      background: #0b1220;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid #1f2a3a;
+    }
+
+    .bar {
+      height: 100%;
+      width: 0;
+      background: #06b6d4;
+      transition: width .3s ease;
+    }
+  </style>
 </head>
+
 <body>
-<header>RCH4 IA — Photo → OCR (cadre blanc) + QR (zone bleue) → Prompt</header>
+<header>
+  RCH4 IA — Photo → OCR (cadre blanc) + QR (zone bleue) → Prompt
+</header>
+
+<!-- ⚙️ Structure principale de l'application -->
 <main>
-<section class="card"><h2>1) Prendre une photo / importer</h2>
-<div class="row"><button id="btnStart">Activer la caméra</button><button id="btnShot" class="secondary" disabled>Capturer</button>
-<input id="file" type="file" accept="image/*,.pdf" capture="environment" style="display:none"><button id="btnUpload" class="secondary">Importer image ou PDF</button></div>
-<video id="video" playsinline></video><canvas id="canvas" hidden></canvas></section>
-<section class="card"><h2>2) Traitement (QR + OCR ciblé)</h2>
-<div class="row"><button id="btnProcess" disabled>Lancer le traitement</button><button id="btnClear" class="secondary">Effacer</button></div>
-<div class="progress" style="margin:10px 0"><div id="bar" class="bar"></div></div>
-<div id="status" class="hint">Prêt.</div><textarea id="result" placeholder="Texte OCR (cadre blanc) + contenu du QR (zone bleue)…"></textarea></section>
-<section class="card"><h2>3) Composer & envoyer à ChatGPT</h2>
-<textarea id="prompt"></textarea><div class="row" style="margin-top:10px"><button id="btnOpen">Ouvrir dans ChatGPT</button><button id="btnCopy" class="secondary">Copier le prompt</button></div></section>
+
+  <!-- === 1) Acquisition === -->
+  <section class="card">
+    <h2>1) Prendre une photo / importer</h2>
+    <div class="row">
+      <button id="btnStart">Activer la caméra</button>
+      <button id="btnShot" class="secondary" disabled>Capturer</button>
+      <input id="file" type="file" accept="image/*,.pdf" capture="environment" style="display:none">
+      <button id="btnUpload" class="secondary">Importer image ou PDF</button>
+    </div>
+    <video id="video" playsinline></video>
+    <canvas id="canvas" hidden></canvas>
+  </section>
+
+  <!-- === 2) OCR et QR === -->
+  <section class="card">
+    <h2>2) Traitement (QR + OCR ciblé)</h2>
+    <div class="row">
+      <button id="btnProcess" disabled>Lancer le traitement</button>
+      <button id="btnClear" class="secondary">Effacer</button>
+    </div>
+    <div class="progress" style="margin:10px 0"><div id="bar" class="bar"></div></div>
+    <div id="status" class="hint">Prêt.</div>
+    <textarea id="result" placeholder="Texte OCR (cadre blanc) + contenu du QR (zone bleue)…"></textarea>
+  </section>
+
+  <!-- === 3) Prompt compilé pour ChatGPT === -->
+  <section class="card">
+    <h2>3) Composer & envoyer à ChatGPT</h2>
+    <textarea id="prompt"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="btnOpen">Ouvrir dans ChatGPT</button>
+      <button id="btnCopy" class="secondary">Copier le prompt</button>
+    </div>
+  </section>
+
 </main>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+
+<!-- 💡 Scripts applicatifs -->
 <script>
-pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-const video=document.getElementById('video'),canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d'),
-btnStart=document.getElementById('btnStart'),btnShot=document.getElementById('btnShot'),btnUpload=document.getElementById('btnUpload'),
-fileInput=document.getElementById('file'),btnProcess=document.getElementById('btnProcess'),btnClear=document.getElementById('btnClear'),
-statusEl=document.getElementById('status'),bar=document.getElementById('bar'),resultEl=document.getElementById('result'),promptEl=document.getElementById('prompt');
-let stream=null,capturedImage=null;
-function setStatus(m,p=0){statusEl.textContent=m;bar.style.width=(p*100)+'%';}
-function showCanvas(){video.hidden=true;canvas.hidden=false;}
-btnStart.onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-video.srcObject=stream;await video.play();btnShot.disabled=false;}catch(e){alert('Caméra non disponible: '+e.message);}}
-btnShot.onclick=()=>{const w=video.videoWidth||1280,h=video.videoHeight||720;canvas.width=w;canvas.height=h;ctx.drawImage(video,0,0,w,h);
-showCanvas();capturedImage=canvas.toDataURL('image/png');btnProcess.disabled=false;}
-btnUpload.onclick=()=>fileInput.click();
-fileInput.onchange=async(e)=>{const f=e.target.files[0];if(!f)return;
-if(f.name.toLowerCase().endsWith('.pdf')||f.type==='application/pdf'){const a=new Uint8Array(await f.arrayBuffer()),pdf=await pdfjsLib.getDocument({data:a}).promise,p=await pdf.getPage(1),v=p.getViewport({scale:2});
-canvas.width=v.width;canvas.height=v.height;await p.render({canvasContext:ctx,viewport:v}).promise;showCanvas();capturedImage=canvas.toDataURL('image/png');}
-else{const i=new Image();i.onload=()=>{canvas.width=i.width;canvas.height=i.height;ctx.drawImage(i,0,0);showCanvas();capturedImage=canvas.toDataURL('image/png');};i.src=URL.createObjectURL(f);}btnProcess.disabled=false;}
-btnClear.onclick=()=>{resultEl.value='';promptEl.value='';bar.style.width='0%';setStatus('Prêt.');btnProcess.disabled=!capturedImage;}
-function readQR(){const i=ctx.getImageData(0,0,canvas.width,canvas.height),c=jsQR(i.data,canvas.width,canvas.height,{inversionAttempts:'attemptBoth'});return c?c.data:'';}
-async function doOCR(d){const r=await Tesseract.recognize(d,'fra+eng',{langPath:'https://tessdata.projectnaptha.com/4.0.0_best/',tessedit_pageseg_mode:'6'});return r.data.text||'';}
-document.getElementById('btnProcess').onclick=async()=>{if(!capturedImage)return alert('Aucune image.');try{setStatus('Lecture QR…',.1);const q=readQR();
-setStatus('OCR…',.3);const t=await doOCR(canvas.toDataURL('image/png')),comp=`# Texte (cadre blanc)\n${t}\n\n# QR (zone bleue)\n${q||'(aucun QR)'}\n`;resultEl.value=comp;
-const p=`Analyse opérationnelle RCH4 à partir de la fiche :\n${comp}`;promptEl.value=p;setStatus('Terminé.',1);}catch(e){alert('Erreur:'+e.message);setStatus('Erreur.');}};
-document.getElementById('btnOpen').onclick=()=>{const q=encodeURIComponent(promptEl.value||resultEl.value||'');if(!q)return alert('Prompt vide.');window.open('https://chat.openai.com/?q='+q,'_blank');};
-document.getElementById('btnCopy').onclick=async()=>{await navigator.clipboard.writeText(promptEl.value||resultEl.value||'');};
-</script></body></html>
+/* -----------------------------------------------------------
+   🔧 Variables globales et initialisation
+   ----------------------------------------------------------- */
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+
+const video     = document.getElementById('video');
+const canvas    = document.getElementById('canvas');
+const ctx       = canvas.getContext('2d');
+
+const btnStart  = document.getElementById('btnStart');
+const btnShot   = document.getElementById('btnShot');
+const btnUpload = document.getElementById('btnUpload');
+const fileInput = document.getElementById('file');
+
+const btnProcess= document.getElementById('btnProcess');
+const btnClear  = document.getElementById('btnClear');
+
+const statusEl  = document.getElementById('status');
+const bar       = document.getElementById('bar');
+
+const resultEl  = document.getElementById('result');
+const promptEl  = document.getElementById('prompt');
+
+let stream = null;          // flux caméra
+let capturedImage = null;   // image capturée (base64)
+
+/* -----------------------------------------------------------
+   🎥 Activation de la caméra et capture photo
+   ----------------------------------------------------------- */
+btnStart.onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' } // arrière du téléphone
+    });
+    video.srcObject = stream;
+    await video.play();
+    btnShot.disabled = false;
+    setStatus("Caméra activée.");
+  } catch(e) {
+    alert("Caméra non disponible : " + e.message);
+  }
+};
+
+btnShot.onclick = () => {
+  const w = video.videoWidth || 1280;
+  const h = video.videoHeight || 720;
+  canvas.width = w; canvas.height = h;
+  ctx.drawImage(video, 0, 0, w, h);
+  capturedImage = canvas.toDataURL("image/png");
+  btnProcess.disabled = false;
+};
+
+/* -----------------------------------------------------------
+   📂 Import d’image ou PDF
+   ----------------------------------------------------------- */
+btnUpload.onclick = () => fileInput.click();
+
+fileInput.onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Cas PDF → rendu première page
+  if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+    const arr = new Uint8Array(await file.arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({ data: arr }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 2 });
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  } else {
+    // Cas image classique
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = URL.createObjectURL(file);
+  }
+
+  capturedImage = canvas.toDataURL("image/png");
+  btnProcess.disabled = false;
+};
+
+/* -----------------------------------------------------------
+   🔍 Fonctions de traitement : QR et OCR
+   ----------------------------------------------------------- */
+function setStatus(msg, p = 0) {
+  statusEl.textContent = msg;
+  bar.style.width = (p * 100) + "%";
+}
+
+function readQR() {
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(img.data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
+  return code ? code.data : "";
+}
+
+async function doOCR(dataURL) {
+  const result = await Tesseract.recognize(dataURL, "fra+eng", {
+    langPath: "https://tessdata.projectnaptha.com/4.0.0_best/",
+    tessedit_pageseg_mode: "6"
+  });
+  return result.data.text || "";
+}
+
+/* -----------------------------------------------------------
+   🚀 Pipeline complet : OCR + QR → Prompt
+   ----------------------------------------------------------- */
+btnProcess.onclick = async () => {
+  if (!capturedImage) return alert("Aucune image.");
+
+  try {
+    setStatus("Lecture QR…", 0.1);
+    const qr = readQR();
+
+    setStatus("OCR…", 0.3);
+    const text = await doOCR(canvas.toDataURL("image/png"));
+
+    const combined = `# Texte (cadre blanc)
+${text}
+
+# QR (zone bleue)
+${qr || "(aucun QR détecté)"}`;
+
+    resultEl.value = combined;
+
+    const prompt = `Tu es un assistant opérationnel IA pour un conseiller technique RCH4.
+À partir des éléments suivants (texte OCR + QR), aide à :
+- analyser le produit
+- analyser la zone d'intervention
+- dimensionner les moyens
+
+---
+${combined}`;
+
+    promptEl.value = prompt;
+    setStatus("Terminé.", 1);
+  } catch (err) {
+    alert("Erreur : " + err.message);
+    setStatus("Erreur.");
+  }
+};
+
+/* -----------------------------------------------------------
+   🧾 Outils : copier ou ouvrir le prompt
+   ----------------------------------------------------------- */
+document.getElementById('btnOpen').onclick = () => {
+  const q = encodeURIComponent(promptEl.value || resultEl.value || "");
+  if (!q) return alert("Prompt vide.");
+  window.open("https://chat.openai.com/?q=" + q, "_blank");
+};
+
+document.getElementById('btnCopy').onclick = async () => {
+  await navigator.clipboard.writeText(promptEl.value || resultEl.value || "");
+  alert("Prompt copié !");
+};
+</script>
+</body>
+</html>
