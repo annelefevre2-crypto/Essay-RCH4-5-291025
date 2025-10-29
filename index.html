@@ -262,6 +262,54 @@ function readQR() {
   return code ? code.data : "";
 }
 
+/**
+ * Détection automatique des 4 puces noires aux coins du cadre
+ * Retourne un rectangle englobant { minX, minY, maxX, maxY }
+ */
+function detectCornerDots(threshold = 50, step = 2) {
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
+
+  const darkPoints = [];
+  for (let y = 0; y < canvas.height; y += step) {
+    for (let x = 0; x < canvas.width; x += step) {
+      const i = (y * canvas.width + x) * 4;
+      const luminance = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+      if (luminance < threshold) darkPoints.push({ x, y });
+    }
+  }
+
+  if (darkPoints.length < 100) return null; // rien trouvé
+
+  // Déterminer les 4 coins extrêmes parmi les points sombres
+  const minX = Math.min(...darkPoints.map(p => p.x));
+  const maxX = Math.max(...darkPoints.map(p => p.x));
+  const minY = Math.min(...darkPoints.map(p => p.y));
+  const maxY = Math.max(...darkPoints.map(p => p.y));
+
+  // Pour éviter les zones de texte sombres : on prend une marge autour des coins
+  const margin = Math.round(Math.min(canvas.width, canvas.height) * 0.03);
+
+  return {
+    minX: minX + margin,
+    minY: minY + margin,
+    maxX: maxX - margin,
+    maxY: maxY - margin
+  };
+}
+
+setStatus("Détection des puces de cadrage…", 0.10);
+const frame = detectCornerDots(60, 2); // seuil sombre + échantillon tous les 2 px
+if (frame) {
+  cropToBox(frame);
+  setStatus("Zone cadrée automatiquement.", 0.15);
+} else {
+  setStatus("Puces non détectées — fallback zone blanche.", 0.15);
+  const zone = detectWhiteZoneAdaptive(2);
+  if (zone) cropToBox(zone);
+}
+
+
 async function doOCR(dataURL) {
   const result = await Tesseract.recognize(dataURL, "fra+eng", {
     langPath: "https://tessdata.projectnaptha.com/4.0.0_best/",
